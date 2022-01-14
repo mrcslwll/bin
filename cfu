@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+
+# CFU (Crawl For Urls)
+
+# This script will run linkfinder and html-tool recursively in all urls from stdin
+import os
+import sys
+from time import sleep
+
+try:
+	check = sys.argv[1]
+except IndexError:
+	check = ""
+
+
+k = 0
+
+main_list = sys.stdin.readlines()
+
+# Open the file for writing the results
+results = open("endpoints_labeled", 'w')
+
+
+# Each linkfinder output will be treated and then added to the list in order to be a target later.
+while k != len(main_list):
+	url = main_list[k]
+	url = url.rstrip()
+
+	# This will treat the urls from the first run because every url discovered will be treated before being added to the list
+	if url.startswith("http") != True:
+		url = "https://" + url
+
+	url = url.replace(";", "")
+	url = url.replace(">", "")
+	url = url.replace("<", "")
+	url = url.replace("&", "")
+	url = url.replace("|", "")
+
+	# Run linkfinder and html-tool
+	print(url)
+	try:
+		os.system("linkfinder -i " + url + " -o cli > temp")
+		os.system('echo ' + url + " | html-tool attribs src href >> temp")
+		os.system("cat temp | sort -u > temp2 && mv temp2 temp")
+	except ValueError:
+		pass
+		
+	# Open the temp file to get the results
+	founds = open("temp", 'r')
+	founds = founds.readlines()
+
+	# Prints a label if the user wants to
+	if check.lower() == "label":
+		if len(founds) != 0:
+			print("===============================")
+			print(url)
+			print("===============================")
+
+	# But always use labels in the results file if theres any endpoints
+	if len(founds) > 0:
+		results.write("===============================\n")
+		results.write(url+ "\n")
+		results.write("===============================\n")	
+
+	# Defines the subdomain variable in order to help the treating
+	if url.startswith("https://"):
+		subdomain = url.replace("https://", "")
+		method = "https:"
+
+	if url.startswith("http://"):
+		subdomain = url.replace("http://", "")
+		method = "http:"
+
+	subdomain = subdomain.split("/")[0]
+
+
+
+
+
+
+	# For loop to treat the results and append them to the list
+	for found in founds:
+		found = found.rstrip()
+
+		if " " not in found: 
+			try:
+				if found[0] == "/" and found[1] != "/":
+					found = method+"//"+ subdomain + found
+					if found not in main_list:			
+						main_list.append(found)	
+						print(found)
+
+				elif found.startswith("//") and subdomain in found:
+					found = method+found
+					if found not in main_list:
+						main_list.append(found)	
+						print(found)
+
+				elif found.startswith("./"):
+					found = method+ "//"+ subdomain + found[1:]
+					if found not in main_list:
+						main_list.append(found)	
+						print(found)
+				
+				elif found.startswith(subdomain):
+					found =  method+ "//"+found
+					if found not in main_list:
+						main_list.append(found)	
+						print(found)
+					
+				elif found.startswith("https://") and subdomain in found:
+					found = found
+					if found not in main_list:
+						main_list.append(found)	
+						print(found)
+
+
+				elif found[0].isalpha() and subdomain in found:
+					found =  method+ "//"+found
+					if found not in main_list:
+						main_list.append(found)	
+						print(found)
+
+				elif found[0].isalpha() and found.startswith("http") != True and '/' in found:
+					found =  method+ "//"+subdomain+'/'+found
+					if found not in main_list:
+						main_list.append(found)	
+						print(found)
+	
+			except:
+				pass
+					
+			
+	
+				
+
+	k += 1
+	#sleep(1)
+
+for url in main_list:
+	results.write(url)
+

@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+
+domains = []
+
+# Vou criar uma lista domains com os dominios só pra ficar mais fácil de entender 
+for line in sys.stdin:
+	domains.append(line)
+
+# Esse vai ser o loop principal da aplicação
+for domain in domains:
+	domain = domain.rstrip()
+
+	# Criar uma pasta pra cada dominio 
+	os.system('mkdir ' + domain)
+	os.system('mkdir ' + domain + '/subdomains_dir')
+
+	# 1- Rodar amass
+	print("[*] Rodando amass em " + domain)
+	os.system("amass enum -passive -silent -d " + domain + " -o " + domain + '/amass_results')
+
+	# 2- Rodar subfinder
+	print("[*] Rodando subfinder em " + domain)
+	os.system("subfinder -silent -d " + domain + " -o " + domain + '/subfinder_results')
+
+	# 3- Rodar github-subdomains.py
+	print("[*] Rodando github-subdomains em " + domain)
+	os.system("github-subdomains.py -d " + domain + " > " + domain + '/github-subdomains_results')
+
+	# 4- Pesquisar no https://tls.bufferover.run/dns?q=
+	print("[*] Pesquisando no https://tls.bufferover.run/dns?q=")
+	os.system("curl https://tls.bufferover.run/dns?q=." + domain + " > " + domain + "/tls-scan_results")
+
+	# Agora tenho que parsear os resultados
+	a = open(domain+"/tls-scan_results", 'r').readlines()
+
+	b = open(domain+"/tls-scan_results", 'w')
+	sortu =[] 
+
+	# Gambiarra
+	for line in a:
+		subdomain = line.split(',')[len(line.split(','))-2] # Separar a ultima parte da linha pq eu não sei fazer regex
+		if domain in line: # Só funciona se tiver o domain na linha pra evitar o todo o lixo que o negocio trás junto 
+			if subdomain not in sortu: # Se já não tiver sido descoberto, adicionar na lista
+				sortu.append(subdomain)
+				b.writelines(subdomain.strip(",").strip('"').strip("*.")+'\n') # Remover o lixo que vem junto
+			
+	# 5- Fazer subdomain bruteforce
+	print("[*] Rodando massdns")
+	os.system("massdns.py " + domain + " massdns_results")
+	os.system("mv massdns_results " + domain + "/")
+	os.system("rm resolve_results.txt wordlist")
+
+	# 6- Rodar altdns e depois brute force
+	print("[*] Rodando altdns e depois brute force")
+	os.system("cat " + domain+'/*_results | sort -u > ' + domain +'/altdns_input')
+	os.system('altdns -i ' + domain +'/altdns_input -o ' + domain + '/altdns_output -w ~/Wordlists/words.txt')
+	os.system("massdns_list " + domain+ "/altdns_output " + domain+ "/altdns_results")
+
+	# 7- Juntar todos os resultados com sort -u
+	os.system("cat " + domain+ "/*_results | sort -u > " + domain+"/subdomains")
+
+	# 8- Rodar httpx
+	print("[*] Rodando httpx")
+	os.system("cat " + domain+ "/subdomains | httpx -silent > " +domain+ "/subdomains_http")
+
+	# 9- Criar pastas pra cada um dos subdomains
+	print('[*] Criando pastas pra cada um dos subdomains')
+
+	# Tem que remover https:// e http:// pra funcionar
+
+	a = open(domain + "/subdomains_http", 'r').readlines()
+
+	for line in a:
+		if line.startswith("https://"):
+			if not os.path.exists(domain+ "/subdomains_dir/"+line.replace('https://','').rstrip()): # Checa se já existe uma pasta desse subdomain pra criar uma caso não exista
+				os.makedirs(domain+ "/subdomains_dir/"+line.replace('https://','').rstrip())
+
+		if line.startswith("http://"):
+			if not os.path.exists(domain+ "/subdomains_dir/"+line.replace('http://','').rstrip()): # Checa se já existe uma pasta desse subdomain pra criar uma caso não exista
+				os.makedirs(domain+ "/subdomains_dir/"+line.replace('http://','').rstrip())
+    	
+    # os.system('mkdir ' + domain + '/trash') # Cria uma pasta trash pra guardar os outros arquivos
+    # os.system('mv ' + domain + '/*_results ' + domain + '/trash ') # Move todos os arquivos com o final _results pra trash
+    
+	# Pronto!
+
+
+	# Fazer com que ele faça portscan em todos os subdomains

@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+
+# Script to crawl a website with linkfinder and html-tool using cookies custom headers
+
+import sys
+import argparse
+import requests
+import os
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-cookies", help="Cookies to include in the requests")
+parser.add_argument("-headers", help="Headers to include in the requests")
+
+args = parser.parse_args()
+
+main_list = sys.stdin.readlines()
+
+external = []
+
+k = 0
+
+while k != len(main_list):
+	url = main_list[k]
+	url = url.rstrip()
+
+	# This will treat the urls from the first run cause every url discovered will be treated before being added to the list
+	if url.startswith("http") != True:
+		url = "https://" + url
+
+	url = url.replace(";", "")
+	url = url.replace(">", "")
+	url = url.replace("<", "")
+	url = url.replace("&", "")
+	url = url.replace("|", "")
+
+
+	# Make a request with Requests and save the page 
+	page = open('page_temp.html', 'w')
+
+	cookies = {}
+
+	if args.headers != None:
+		cookies_list = args.cookies.split(',')
+
+		for cookie in cookies_list:
+			splited = cookie.split('=')
+			cookies[splited[0]]=splited[1]
+
+	headers = {}
+
+	if args.headers != None:
+		headers_list = args.headers.split(',')
+
+		for hearder in headers_list:
+			splited = hearder.split('=')
+			headers[splited[0]]=splited[1]
+
+	r = requests.get(url, cookies=cookies, headers=headers)
+
+	for line in r.text:
+		page.writelines(line)
+
+
+	page.close()
+
+	file_path = ''
+
+	# Run linkfinder and html-tool
+	try:
+		os.system("linkfinder -i page_temp.html -o cli > temp")
+		os.system("echo page_temp.html | html-tool attribs src href >> temp")
+		os.system("cat temp | sort -u > temp2 && mv temp2 temp")
+	except ValueError:
+		pass
+		
+	# Open the temp file to get the results
+	founds = open("temp", 'r')
+	founds = founds.readlines()
+
+
+	# Defines the subdomain variable in order to help the treating
+	if url.startswith("https://"):
+		subdomain = url.replace("https://", "")
+
+	if url.startswith("http://"):
+		subdomain = url.replace("http://", "")
+
+	subdomain = subdomain.split("/")[0]
+
+
+	# For loop to treat the results and append them to the list
+	for found in founds:
+		found = found.rstrip()
+
+		#print("BEARS DO NOT EAT BEETS")
+
+		if " " not in found and "/k/l/" not in found: 
+			try:
+				if found[0] == "/" and found[1] != "/":
+					found = "https://"+ subdomain + found
+					if found not in main_list:			
+						main_list.append(found)	
+						print(found)
+
+				elif found.startswith("//") and subdomain in found:
+					found = "https:"+found
+					if found not in main_list:
+						main_list.append(found)	
+						print(found)
+
+				elif found.startswith("./"):
+					found = "https://"+ subdomain + found[1:]
+					if found not in main_list:
+						main_list.append(found)	
+						print(found)
+				
+				elif found.startswith(subdomain):
+					found =  "https://"+found
+					if found not in main_list:
+						main_list.append(found)	
+						print(found)
+					
+				elif found.startswith("https://") and subdomain in found:
+					found = found
+					if found not in main_list:
+						main_list.append(found)	
+						print(found)
+
+
+				elif found[0].isalpha() and subdomain in found:
+					found =  "https://"+found
+					if found not in main_list:
+						main_list.append(found)	
+						print(found)
+
+				elif found[0].isalpha() and found.startswith("http") != True and '/' in found:
+					found =  "https://"+subdomain+'/'+found
+					if found not in main_list:
+						main_list.append(found)	
+						print(found)
+
+				elif found.startswith('//') and subdomain not in found:
+					found =  "https:" + found
+					if found not in external:
+						external.append(found)	
+						print(found)
+
+				elif found.startswith('https://') and subdomain not in found:
+					if found not in external:
+						external.append(found)	
+						print(found)
+	
+
+			except:
+				pass
+					
+			
+	
+				
+
+	k += 1
+	#sleep(1)
+
+
+external_file = open('external_urls', 'w')
+
+for line in external:
+	external_file.writelines(line.rstrip()+'\n')
+
+

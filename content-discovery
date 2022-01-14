@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+
+subdomains = []
+
+aquatone_input = "" # String que vai conter todos os subdomains inputados. Mais fácil do que ter 
+# que criar um arquivo e rodar aquatone com ele
+
+for line in sys.stdin: # Criando uma lista de nome subdomains pra deixar o código mais claro
+	subdomains.append(line)
+	aquatone_input = aquatone_input + line
+
+
+
+os.system('echo  "'+ aquatone_input + '" | aquatone -chrome-path /snap/bin/chromium -out subdomains_screenshots')
+
+if not os.path.exists("subdomains_dir"): # Checa se já existe uma pasta subdomains_dir pra criar
+# uma caso não exista
+    os.makedirs("subdomains_dir")
+
+
+for subdomain in subdomains: # Loop principal do programa
+	subdomain = subdomain.rstrip()
+
+	if subdomain.startswith("https://"):
+		if not os.path.exists("subdomains_dir/"+subdomain.replace('https://','').rstrip()): # Checa se já existe uma pasta desse subdomain pra criar uma caso não exista
+			os.makedirs("subdomains_dir/"+subdomain.replace('https://','').rstrip())
+
+	if subdomain.startswith("http://"):
+		if not os.path.exists("subdomains_dir/"+subdomain.replace('http://','').rstrip()): # Checa se já existe uma pasta desse subdomain pra criar uma caso não exista
+			os.makedirs("subdomains_dir/"+subdomain.replace('http://','').rstrip())
+
+    # 1- Rodar ffuf e guardar os resultados num arquivo pra poder tirar print depois
+	print("[*] Rodando ffuf")
+	
+	os.system('ffuf -w ~/Wordlists/big.txt -u ' + subdomain + '/FUZZ -s -r > subdomains_dir/'+subdomain+'/dirbrute_results')
+
+	a = open('subdomains_dir/'+subdomain+'/dirbrute_results', 'r', encoding="ISO-8859-1").readlines()
+
+	b = open('subdomains_dir/'+subdomain+'/dirbrute_results', 'w', encoding="ISO-8859-1") 
+
+	for line in a:
+		b.write(subdomain + '/' + line)
+
+	b.close()
+
+	os.system('cat subdomains_dir/'+subdomain+ '/dirbrute_results >> dir_brute_screenshots_input')
+
+    # 2- Fazer portscanning com nmap
+	print("[*] Rodando nmap")
+	os.system("nmap -v -A -p- " + subdomain + " > subdomains_dir/" +subdomain+"/nmap_results")
+
+    # 3- Juntar urls com gau
+	print("[*] Rodando gau")
+	os.system('echo ' + subdomain + ' | gau | sort -u > subdomains_dir/' +subdomain+ '/gau_results')
+
+    # 4- Juntar parametros com paramspider 
+	print("[*] Rodando ParamSpider")
+	os.system("python3 ~/Downloads/ParamSpider/paramspider.py -d " + subdomain + " -o subdomains_dir/"+subdomain+'/paramspider_results')
+
+
+# 5- Rodando aquatone nos diretorios descobertos por brute force
+print('[*] Rodando aquatone nos diretorios descobertos por brute force')
+os.system("cat dir_brute_screenshots_input | aquatone -chrome-path /snap/bin/chromium -out dirbrute_results_screenshots")

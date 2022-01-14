@@ -1,0 +1,5 @@
+#!/usr/bin/env python3
+
+import os
+
+os.system("ssh root@165.22.222.111")

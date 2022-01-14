@@ -1,0 +1,76 @@
+#!/usr/bin/env python3 
+
+import os
+import sys
+
+jsfiles = []
+
+for line in sys.stdin:
+	jsfiles.append(line.rstrip())
+
+a = open("endpoints_only", 'w')
+
+def consertar(url, file): 
+	# url -> url que vai ser consertado
+	# file -> file em que o url foi encontrado
+
+	url = url.rstrip()
+
+
+	if len(url) > 2:
+		if url[0] == '/' and url[1] != '/':
+			if file.startswith("https://"):
+				method = 'https://'
+
+			elif file.startswith("http://"):
+				method = 'http://'
+
+			else:
+				method =''
+
+			if len(method) > 0:
+				subdomain = file.split(method)[1].split('/')[0]
+				directory = file.split(subdomain)[1]
+				url = method + subdomain + url
+
+		elif url.startswith('http://') or url.startswith("https://"):
+			url = url
+
+		elif not url.startswith('http://') or not url.startswith("https://") and url[0] != '.':
+			if file.startswith("https://"):
+				method = 'https://'
+
+			elif file.startswith("http://"):
+				method = 'http://'
+
+			else:
+				method =''
+
+			if len(method) > 0:
+				subdomain = file.split(method)[1].split('/')[0]
+				directory = file.split(subdomain)[1]
+				url = method + subdomain + '/' + url
+
+
+	return url
+
+
+for file in jsfiles:
+	os.system("linkfinder -i " + file +" -o cli > temp")
+
+	temp = open("temp", 'r').readlines()
+
+	check = 0
+
+	for line in temp:
+		if "Usage: python /usr/local/bin/linkfinder [Options] use -h for help" in line:
+			check = 1
+
+	if check == 0:
+		print("\n----------------------------------------------------------------\n")
+		print(file +"\n" + '='*len(file))
+
+		for line in temp:
+			print(consertar(line.rstrip(), file))
+			a.write(consertar(line.rstrip(), file)+'\n')
+			# print(line)
